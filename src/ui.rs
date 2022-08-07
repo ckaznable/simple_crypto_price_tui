@@ -119,7 +119,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
       .map(|h| Cell::from(*h).style(Style::default().fg(Color::Red)));
   let header = Row::new(header_cells)
       .style(Style::default())
-      .height(2)
+      .height(1)
       .bottom_margin(1);
   let rows = app.items.iter().map(|item| {
       let height = item
@@ -128,7 +128,13 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
           .max()
           .unwrap_or(0)
           + 1;
-      let cells = item.iter().map(|c| Cell::from(*c));
+
+      let is_down = item[3].starts_with("-");
+      let cells = item.iter().map(|c| {
+        Cell::from(*c)
+          .style(Style::default()
+          .fg(if is_down { Color::Red } else { Color::Green }))
+      });
       Row::new(cells).height(height as u16).bottom_margin(1)
   });
   let t = Table::new(rows)
