@@ -11,7 +11,7 @@ use tui::{
   widgets::{Block, Borders, Cell, Row, Table, TableState},
   Frame, Terminal,
 };
-use crate::api::get_vec_data;
+use crate::api::DataProvider;
 
 struct App<'a> {
   state: TableState,
@@ -53,10 +53,6 @@ impl<'a> App<'a> {
     };
     self.state.select(Some(i));
   }
-
-  pub fn set_items(&mut self, items: Vec<Vec<&'a str>>) {
-    self.items = items;
-  }
 }
 
 pub fn run() -> Result<(), Box<dyn Error>> {
@@ -69,11 +65,8 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 
   // create app and run it
   let mut app = App::new();
-  // get api data
-  let data = get_vec_data();
-  app.set_items(data.iter().map(|x| {
-    x.iter().map(|y| &y[..]).collect()
-  }).collect());
+  let mut provider = DataProvider::new();
+  app.items = provider.update_items();
 
   let res = run_app(&mut terminal, app);
 
@@ -93,7 +86,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
   Ok(())
 }
 
-fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
+fn run_app<'a, B: Backend>(terminal: &mut Terminal<B>, mut app: App<'a>) -> io::Result<()> {
   loop {
     terminal.draw(|f| ui(f, &mut app))?;
 
