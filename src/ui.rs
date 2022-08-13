@@ -3,7 +3,7 @@ use crossterm::{
   execute,
   terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::{error::Error, io};
+use std::{error::Error, io, time::SystemTime};
 use tui::{
   backend::{Backend, CrosstermBackend},
   layout::{Constraint, Layout},
@@ -11,18 +11,20 @@ use tui::{
   widgets::{Block, Borders, Cell, Row, Table, TableState},
   Frame, Terminal,
 };
-use crate::api::DataProvider;
+use crate::api::get_data;
 
-struct App<'a> {
+struct App {
   state: TableState,
-  items: Vec<Vec<&'a str>>,
+  items: Vec<Vec<String>>,
+  last_update: SystemTime,
 }
 
-impl<'a> App<'a> {
-  fn new() -> App<'a> {
+impl App {
+  fn new() -> App {
     App {
       state: TableState::default(),
-      items: vec![],
+      items: get_data(),
+      last_update: SystemTime::now()
     }
   }
 
@@ -53,6 +55,21 @@ impl<'a> App<'a> {
     };
     self.state.select(Some(i));
   }
+
+  pub fn update(&mut self) {
+    let now = SystemTime::now();
+
+    if let Ok(d) = now.duration_since(self.last_update) {
+      if d.as_secs() > 60 {
+        self.last_update = now;
+        self.items = get_data();
+      }
+    };
+  }
+
+  pub fn force_update(&mut self) {
+    self.items = get_data();
+  }
 }
 
 pub fn run() -> Result<(), Box<dyn Error>> {
@@ -64,10 +81,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
   let mut terminal = Terminal::new(backend)?;
 
   // create app and run it
-  let mut app = App::new();
-  let mut provider = DataProvider::new();
-  app.items = provider.update_items();
-
+  let app = App::new();
   let res = run_app(&mut terminal, app);
 
   // restore terminal
@@ -86,18 +100,21 @@ pub fn run() -> Result<(), Box<dyn Error>> {
   Ok(())
 }
 
-fn run_app<'a, B: Backend>(terminal: &mut Terminal<B>, mut app: App<'a>) -> io::Result<()> {
+fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
   loop {
     terminal.draw(|f| ui(f, &mut app))?;
 
     if let Event::Key(key) = event::read()? {
       match key.code {
         KeyCode::Char('q') => return Ok(()),
+        KeyCode::Char('r') => app.force_update(),
         KeyCode::Down => app.next(),
         KeyCode::Up => app.previous(),
         _ => {}
       }
     }
+
+    app.update();
   }
 }
 
@@ -124,7 +141,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 
       let is_down = item[3].starts_with("-");
       let cells = item.iter().map(|c| {
-        Cell::from(*c)
+        Cell::from(c.to_owned())
           .style(Style::default()
           .fg(if is_down { Color::Red } else { Color::Green }))
       });
